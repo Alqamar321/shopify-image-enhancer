@@ -1,7 +1,7 @@
 // OpenAI image enhancement (ChatGPT image model via API)
 import OpenAI, { toFile } from 'openai';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let openai = null; // created on first use so the server still starts if the key is missing
 const MODEL = process.env.OPENAI_IMAGE_MODEL || 'gpt-image-2.5-sunburst';
 
 export const PROMPT = process.env.ENHANCE_PROMPT || `Professional e-commerce product photo for an online store.
@@ -13,6 +13,8 @@ Place the product centred on a pure white (#FFFFFF) seamless background, soft ev
 a subtle natural shadow underneath, sharp focus, product filling about 80% of the square frame.`;
 
 export async function enhanceImage(imageUrl) {
+  if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is not set on Render');
+  openai ||= new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const res = await fetch(imageUrl);
   if (!res.ok) throw new Error(`Could not download source image (${res.status})`);
   const buf = Buffer.from(await res.arrayBuffer());
