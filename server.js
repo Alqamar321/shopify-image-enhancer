@@ -41,7 +41,15 @@ async function runQueue() {
   while (queue.length) {
     const id = queue.shift();
     try { await processProduct(id); }
-    catch (e) { stats.failed++; addLog(`FAILED ${id}: ${e.message}`); }
+    catch (e) {
+      stats.failed++;
+      addLog(`FAILED ${id}: ${e.message}`);
+      // Billing / quota / bad key problems affect every product — stop instead of burning through the queue
+      if (/credits|quota|billing|401|Incorrect API key/i.test(e.message)) {
+        addLog(`STOPPED: OpenAI account problem — ${queue.length} products left unprocessed. Fix it, then re-run the batch link.`);
+        queue.length = 0;
+      }
+    }
     await sleep(1000);
   }
   running = false;
