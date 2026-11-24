@@ -15,6 +15,7 @@ const PORT = process.env.PORT || 3000;
 const ADMIN_KEY = process.env.ADMIN_KEY;
 const AUTO_APPLY = process.env.AUTO_APPLY === 'true';
 const WEBHOOK_DELAY_SEC = Number(process.env.WEBHOOK_DELAY_SEC || 120);
+const PAUSED = process.env.PAUSED === 'true'; // pause switch: no webhook or batch processing
 const SKIP_TAGS = ['img-enhanced', 'img-pending', 'img-rejected', 'img-skip'];
 
 // ---------- simple job queue (one image at a time) ----------
@@ -91,6 +92,7 @@ app.post('/webhooks/product-create', express.raw({ type: '*/*' }), (req, res) =>
   res.status(200).send('ok');
 
   const body = JSON.parse(req.body.toString('utf8'));
+  if (PAUSED) return addLog(`PAUSED: ignored new product "${body.title}"`);
   const id = body.admin_graphql_api_id || `gid://shopify/Product/${body.id}`;
   addLog(`webhook: new product "${body.title}" — waiting ${WEBHOOK_DELAY_SEC}s for images`);
   setTimeout(() => enqueue(id), WEBHOOK_DELAY_SEC * 1000);
@@ -102,6 +104,7 @@ app.use(express.urlencoded({ extended: false }));
 app.get('/batch', requireKey, async (req, res) => {
   const handle = req.query.collection;
   const limit = Number(req.query.limit || 20);
+  if (PAUSED) return res.status(503).send('Enhancer is PAUSED (Render env PAUSED=true). Set it to false to run batches.');
   if (!handle) return res.status(400).send('Add ?collection=<collection-handle>');
   try {
     const all = await getCollectionProducts(handle);
@@ -125,7 +128,7 @@ app.get('/stop', requireKey, (req, res) => {
 app.get('/status', requireKey, (req, res) => {
   res.type('html').send(`<meta http-equiv="refresh" content="10"><body style="font-family:sans-serif">
     <h2>Image enhancer status</h2>
-    <p>Mode: <b>${AUTO_APPLY ? 'AUTO-APPLY' : 'REVIEW'}</b> &nbsp; Queue: <b>${queue.length}</b> &nbsp; Running: <b>${running}</b>
+    <p>Mode: <b>${PAUSED ? 'PAUSED' : AUTO_APPLY ? 'AUTO-APPLY' : 'REVIEW'}</b> &nbsp; Queue: <b>${queue.length}</b> &nbsp; Running: <b>${running}</b>
     &nbsp; Done: ${stats.done} &nbsp; Failed: ${stats.failed} &nbsp; Skipped: ${stats.skipped}</p>
     <p><a href="/review?key=${ADMIN_KEY}">Open review page</a> &nbsp;|&nbsp;
       <a href="/stop?key=${ADMIN_KEY}" style="color:#cf222e;font-weight:bold">STOP batch</a></p>
@@ -192,7 +195,7 @@ app.get('/', (req, res) => res.send('Al Qamar image enhancer is running.'));
 // Products already processed are skipped by their tags, so a restart never re-charges them.
 async function startupBatch() {
   const spec = (process.env.STARTUP_BATCH || '').trim();
-  if (!spec) return;
+  if (!spec || PAUSED) return;
   const [handle, lim] = spec.split(':');
   try {
     const all = await getCollectionProducts(handle);
@@ -209,6 +212,6 @@ setInterval(() => {
 }, 5 * 60 * 1000);
 
 app.listen(PORT, () => {
-  addLog(`server on :${PORT} (mode: ${AUTO_APPLY ? 'auto-apply' : 'review'})`);
+  addLog(`server on :${PORT} (mode: ${PAUSED ? 'PAUSED' : AUTO_APPLY ? 'auto-apply' : 'review'})`);
   startupBatch();
 });

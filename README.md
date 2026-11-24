@@ -24,6 +24,7 @@ Tags used: `img-pending`, `img-enhanced`, `img-rejected`. Add `img-skip` to any 
 | `AUTO_APPLY` | `false` (review mode). Set `true` only after testing. |
 | `OPENAI_IMAGE_MODEL` | optional, default `gpt-image-2.5-sunburst` |
 | `WEBHOOK_DELAY_SEC` | optional, default `120` |
+| `PAUSED` | `true` = ignore new-product webhooks and batches (review/approve still work) |
 | `STARTUP_BATCH` | optional, e.g. `other-tools:5` — queues that collection on boot (clear it after the run) |
 
 Shopify app scopes needed: `read_products`, `write_products`, `read_files`, `write_files`.
