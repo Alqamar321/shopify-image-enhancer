@@ -1,5 +1,6 @@
 // OpenAI image enhancement (ChatGPT image model via API)
 import OpenAI, { toFile } from 'openai';
+import sharp from 'sharp';
 
 let openai = null; // created on first use so the server still starts if the key is missing
 const MODEL = process.env.OPENAI_IMAGE_MODEL || 'gpt-image-2.5-sunburst';
@@ -30,5 +31,7 @@ export async function enhanceImage(imageUrl) {
   });
   const b64 = result.data?.[0]?.b64_json;
   if (!b64) throw new Error('OpenAI returned no image');
-  return Buffer.from(b64, 'base64');
+  // The model can return a transparent PNG. Meta / Google Shopping catalogs show transparency as black,
+  // so flatten onto pure white before it goes to Shopify.
+  return sharp(Buffer.from(b64, 'base64')).flatten({ background: '#ffffff' }).png().toBuffer();
 }
