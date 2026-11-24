@@ -173,4 +173,28 @@ app.get('/restore', requireKey, async (req, res) => {
 
 app.get('/', (req, res) => res.send('Al Qamar image enhancer is running.'));
 
-app.listen(PORT, () => addLog(`server on :${PORT} (mode: ${AUTO_APPLY ? 'auto-apply' : 'review'})`));
+// Optional: queue a batch automatically on boot, e.g. STARTUP_BATCH="other-tools:5"
+// (lets a batch be started from Render's Environment settings without opening /batch).
+// Products already processed are skipped by their tags, so a restart never re-charges them.
+async function startupBatch() {
+  const spec = (process.env.STARTUP_BATCH || '').trim();
+  if (!spec) return;
+  const [handle, lim] = spec.split(':');
+  try {
+    const all = await getCollectionProducts(handle);
+    const todo = all.filter((p) => p.featuredMedia && !p.tags.some((t) => SKIP_TAGS.includes(t))).slice(0, Number(lim || 20));
+    todo.forEach((p) => enqueue(p.id));
+    addLog(`startup batch "${handle}": queued ${todo.length} of ${all.length} products`);
+  } catch (e) { addLog(`startup batch failed: ${e.message}`); }
+}
+
+// Render free plan sleeps after ~15 min without incoming requests — ping ourselves while a batch is running.
+setInterval(() => {
+  const self = process.env.RENDER_EXTERNAL_URL;
+  if (self && (running || queue.length)) fetch(self).catch(() => {});
+}, 5 * 60 * 1000);
+
+app.listen(PORT, () => {
+  addLog(`server on :${PORT} (mode: ${AUTO_APPLY ? 'auto-apply' : 'review'})`);
+  startupBatch();
+});
