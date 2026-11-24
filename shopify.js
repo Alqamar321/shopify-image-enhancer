@@ -121,7 +121,9 @@ export async function setPending(productId, fileId, originalMediaId) {
   await tags(productId, ['img-pending'], []);
 }
 
-// Attach the AI image to the product as the main (first) image. Original stays in the gallery.
+// Attach the AI image to the product as the main (first) image.
+// The old main image is taken off the product (KEEP_ORIGINAL=true keeps it in the gallery instead);
+// it stays in Shopify Files, so /restore can put it back.
 export async function applyImage(productId, fileId) {
   const u = await gql(`mutation($files: [FileUpdateInput!]!) {
     fileUpdate(files: $files) { userErrors { field message } }
@@ -132,7 +134,19 @@ export async function applyImage(productId, fileId) {
     productReorderMedia(id: $id, moves: $moves) { mediaUserErrors { field message } }
   }`, { id: productId, moves: [{ id: fileId, newPosition: '0' }] });
   userErrors(r.productReorderMedia, 'productReorderMedia');
+  if (process.env.KEEP_ORIGINAL !== 'true') await detachOriginal(productId);
   await tags(productId, ['img-enhanced'], ['img-pending']);
+}
+
+async function detachOriginal(productId) {
+  const d = await gql(`query($id: ID!) { product(id: $id) {
+    original: metafield(namespace: "custom", key: "ai_image_original") { value } } }`, { id: productId });
+  const origId = d.product?.original?.value;
+  if (!origId || origId === 'none') return;
+  const u = await gql(`mutation($files: [FileUpdateInput!]!) {
+    fileUpdate(files: $files) { userErrors { field message } }
+  }`, { files: [{ id: origId, referencesToRemove: [productId] }] });
+  userErrors(u.fileUpdate, 'fileUpdate (remove original)');
 }
 
 export async function rejectImage(productId, fileId) {
@@ -150,6 +164,15 @@ export async function restoreOriginal(productId) {
   const aiId = d.product?.pending?.value;
   const origId = d.product?.original?.value;
   if (origId && origId !== 'none') {
+    // re-attach first if it was removed on approve
+    const m = await gql(`query($id: ID!) { product(id: $id) { media(first: 50) { nodes { id } } } }`, { id: productId });
+    if (!m.product.media.nodes.some((n) => n.id === origId)) {
+      const a = await gql(`mutation($files: [FileUpdateInput!]!) {
+        fileUpdate(files: $files) { userErrors { field message } }
+      }`, { files: [{ id: origId, referencesToAdd: [productId] }] });
+      userErrors(a.fileUpdate, 'fileUpdate (re-attach original)');
+      await sleep(1500);
+    }
     const r = await gql(`mutation($id: ID!, $moves: [MoveInput!]!) {
       productReorderMedia(id: $id, moves: $moves) { mediaUserErrors { field message } }
     }`, { id: productId, moves: [{ id: origId, newPosition: '0' }] });

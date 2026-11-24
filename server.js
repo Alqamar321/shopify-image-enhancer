@@ -114,12 +114,26 @@ app.get('/batch', requireKey, async (req, res) => {
   }
 });
 
+// Stop: clears everything still waiting. The image being processed right now finishes (already paid for).
+app.get('/stop', requireKey, (req, res) => {
+  const n = queue.length;
+  queue.length = 0;
+  addLog(`STOPPED by user — ${n} queued products removed`);
+  res.send(`Stopped. ${n} queued products removed. <a href="/status?key=${ADMIN_KEY}">View status</a>`);
+});
+
 app.get('/status', requireKey, (req, res) => {
   res.type('html').send(`<meta http-equiv="refresh" content="10"><body style="font-family:sans-serif">
     <h2>Image enhancer status</h2>
     <p>Mode: <b>${AUTO_APPLY ? 'AUTO-APPLY' : 'REVIEW'}</b> &nbsp; Queue: <b>${queue.length}</b> &nbsp; Running: <b>${running}</b>
     &nbsp; Done: ${stats.done} &nbsp; Failed: ${stats.failed} &nbsp; Skipped: ${stats.skipped}</p>
-    <p><a href="/review?key=${ADMIN_KEY}">Open review page</a></p>
+    <p><a href="/review?key=${ADMIN_KEY}">Open review page</a> &nbsp;|&nbsp;
+      <a href="/stop?key=${ADMIN_KEY}" style="color:#cf222e;font-weight:bold">STOP batch</a></p>
+    <form action="/batch" method="get" style="background:#f4f4f4;padding:10px;border-radius:6px">
+      <input type="hidden" name="key" value="${ADMIN_KEY}">
+      Run collection: <input name="collection" placeholder="collection handle, e.g. other-tools" size="30">
+      Limit: <input name="limit" value="20" size="4">
+      <button>Start</button></form>
     <pre style="background:#f4f4f4;padding:10px">${log.join('\n')}</pre></body>`);
 });
 

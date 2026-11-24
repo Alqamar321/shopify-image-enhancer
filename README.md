@@ -7,7 +7,9 @@ Turns product photos into clean white-background studio images using OpenAI's im
 - **Existing products:** open `/batch?key=ADMIN_KEY&collection=<handle>&limit=20` → queues products from that collection.
 - **Review:** `/review?key=ADMIN_KEY` shows original vs AI side by side → Approve (AI image becomes the main image, original stays in the gallery) or Reject (AI image deleted).
 - **Undo:** `/restore?key=ADMIN_KEY&product=<numeric product id>` puts the original back first.
-- **Status / log:** `/status?key=ADMIN_KEY`
+- **Status / log:** `/status?key=ADMIN_KEY` — has a **Run collection** box and a **STOP batch** link
+- **Stop:** `/stop?key=ADMIN_KEY` clears the queue (the image in progress finishes)
+- On approve the old main image is removed from the product but kept in Shopify Files, so `/restore` still works. Set `KEEP_ORIGINAL=true` to keep it in the gallery instead.
 
 Tags used: `img-pending`, `img-enhanced`, `img-rejected`. Add `img-skip` to any product you never want touched.
 
