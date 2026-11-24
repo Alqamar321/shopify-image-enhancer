@@ -134,6 +134,14 @@ export async function applyImage(productId, fileId) {
     productReorderMedia(id: $id, moves: $moves) { mediaUserErrors { field message } }
   }`, { id: productId, moves: [{ id: fileId, newPosition: '0' }] });
   userErrors(r.productReorderMedia, 'productReorderMedia');
+  // make sure the AI image really is on the product before removing anything
+  let attached = false;
+  for (let i = 0; i < 5 && !attached; i++) {
+    await sleep(1500);
+    const m = await gql(`query($id: ID!) { product(id: $id) { media(first: 50) { nodes { id } } } }`, { id: productId });
+    attached = m.product.media.nodes.some((n) => n.id === fileId);
+  }
+  if (!attached) throw new Error('AI image did not attach to the product — nothing changed, try Approve again');
   if (process.env.KEEP_ORIGINAL !== 'true') await detachOriginal(productId);
   await tags(productId, ['img-enhanced'], ['img-pending']);
 }
